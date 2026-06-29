@@ -1,0 +1,227 @@
+<%- include('partials/header', { title: 'Лента — Instagram' }) %>
+
+<div class="feed-layout">
+
+  <!-- Posts column -->
+  <div id="feed-main">
+
+    <!-- Create post (shown only when logged in) -->
+    <div class="create-post-card" id="create-post-section" style="display:none">
+      <h3>✨ Создать публикацию</h3>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="post-image" accept="image/*" onchange="previewImage(this)" />
+        <div class="upload-zone__icon">📷</div>
+        <div class="upload-zone__text">Нажмите или перетащите изображение</div>
+      </div>
+      <img id="upload-preview" class="upload-preview" alt="preview" />
+      <textarea class="caption-input" id="post-caption" placeholder="Напишите подпись..."></textarea>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="createPost()">Опубликовать</button>
+    </div>
+
+    <!-- Posts -->
+    <div id="posts-container">
+      <div class="posts-loading"><div class="spinner"></div></div>
+    </div>
+
+    <div style="text-align:center;padding:20px;display:none" id="load-more-container">
+      <button class="btn btn-secondary" style="width:auto;padding:8px 24px" onclick="loadMore()">Загрузить ещё</button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="feed-sidebar" id="feed-sidebar"></div>
+</div>
+
+<script>
+  const token   = localStorage.getItem('token');
+  const me      = JSON.parse(localStorage.getItem('user') || 'null');
+  let   page    = 1;
+  const limit   = 5;
+  let   loading = false;
+  let   hasMore = true;
+
+  if (token && me) {
+    document.getElementById('create-post-section').style.display = 'block';
+    renderSidebar();
+  }
+
+  loadPosts(true);
+
+  async function loadPosts(reset = false) {
+    if (loading || !hasMore) return;
+    loading = true;
+    try {
+      const res   = await fetch('/posts?page=' + page + '&limit=' + limit);
+      const posts = await res.json();
+      const container = document.getElementById('posts-container');
+      if (reset) container.innerHTML = '';
+      if (!posts.length && page === 1) {
+        container.innerHTML = '<div class="no-posts"><div class="no-posts__icon">📷</div><p>Нет публикаций. Будьте первым!</p></div>';
+        return;
+      }
+      posts.forEach(post => container.insertAdjacentHTML('beforeend', renderPost(post)));
+      hasMore = posts.length === limit;
+      document.getElementById('load-more-container').style.display = hasMore ? 'block' : 'none';
+      page++;
+    } catch (e) { console.error(e); }
+    finally { loading = false; }
+  }
+
+  function loadMore() { loadPosts(); }
+
+  function renderPost(post) {
+    const authorAvatar = post.author && post.author.avatar
+      ? '<img class="post-card__avatar" src="' + post.author.avatar + '" alt="' + escHtml(post.author.username) + '" />'
+      : '<div class="post-card__avatar-placeholder">' + ((post.author && post.author.username) ? post.author.username[0].toUpperCase() : '?') + '</div>';
+
+    const comments = (post.comments || []).slice(0, 2).map(c =>
+      '<div class="comment-item"><span class="username">' + escHtml(String(c.userId)) + '</span>' + escHtml(c.text) + '</div>'
+    ).join('');
+
+    const totalComments = (post.comments || []).length;
+    const authorUsername = (post.author && post.author.username) ? post.author.username : 'unknown';
+
+    return '<div class="post-card" id="post-' + post.id + '">' +
+      '<div class="post-card__header">' + authorAvatar +
+        '<span class="post-card__username">' + escHtml(authorUsername) + '</span>' +
+      '</div>' +
+      '<img class="post-card__image" src="' + post.image + '" alt="post" loading="lazy" />' +
+      '<div class="post-card__actions">' +
+        '<button class="post-card__action-btn" id="like-btn-' + post.id + '" onclick="toggleLike(' + post.id + ')" title="Нравится">🤍</button>' +
+        '<button class="post-card__action-btn" onclick="focusComment(' + post.id + ')" title="Комментировать">💬</button>' +
+      '</div>' +
+      '<div class="post-card__likes" id="likes-' + post.id + '">' + post.likesCount + ' отметок «Нравится»</div>' +
+      (post.caption ? '<div class="post-card__caption"><span class="username">' + escHtml(authorUsername) + '</span>' + escHtml(post.caption) + '</div>' : '') +
+      '<div class="post-card__comments" id="comments-' + post.id + '">' + comments +
+        (totalComments > 2 ? '<button class="comments-toggle" onclick="loadComments(' + post.id + ')">Посмотреть все комментарии (' + totalComments + ')</button>' : '') +
+      '</div>' +
+      (token
+        ? '<div class="comment-form"><input type="text" id="comment-input-' + post.id + '" placeholder="Добавить комментарий..." onkeydown="if(event.key===\'Enter\') submitComment(' + post.id + ')" /><button onclick="submitComment(' + post.id + ')">Отправить</button></div>'
+        : '<div style="padding:8px 16px;font-size:13px;color:var(--text-light)"><a href="/login">Войдите</a>, чтобы прокомментировать</div>'
+      ) +
+    '</div>';
+  }
+
+  async function toggleLike(postId) {
+    if (!token) { showToast('Войдите, чтобы поставить лайк', 'error'); return; }
+    try {
+      const res  = await fetch('/posts/' + postId + '/like', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('likes-' + postId).textContent = data.likesCount + ' отметок «Нравится»';
+        const btn = document.getElementById('like-btn-' + postId);
+        btn.textContent = btn.textContent.trim() === '❤️' ? '🤍' : '❤️';
+      }
+    } catch (e) { showToast('Ошибка', 'error'); }
+  }
+
+  function focusComment(postId) {
+    const inp = document.getElementById('comment-input-' + postId);
+    if (inp) inp.focus();
+    else { showToast('Войдите, чтобы прокомментировать', 'error'); }
+  }
+
+  async function submitComment(postId) {
+    if (!token) { showToast('Войдите', 'error'); return; }
+    const input = document.getElementById('comment-input-' + postId);
+    const text  = input.value.trim();
+    if (!text) return;
+    try {
+      const res = await fetch('/posts/' + postId + '/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        const box = document.getElementById('comments-' + postId);
+        box.insertAdjacentHTML('beforeend',
+          '<div class="comment-item"><span class="username">' + escHtml(me.username) + '</span>' + escHtml(text) + '</div>');
+        input.value = '';
+      }
+    } catch (e) { showToast('Ошибка', 'error'); }
+  }
+
+  async function loadComments(postId) {
+    const res   = await fetch('/posts?page=1&limit=100');
+    const posts = await res.json();
+    const post  = posts.find(p => p.id == postId);
+    if (!post) return;
+    const box = document.getElementById('comments-' + postId);
+    box.innerHTML = (post.comments || []).map(c =>
+      '<div class="comment-item"><span class="username">' + escHtml(String(c.userId)) + '</span>' + escHtml(c.text) + '</div>'
+    ).join('');
+  }
+
+  function previewImage(input) {
+    if (!input.files[0]) return;
+    const preview = document.getElementById('upload-preview');
+    preview.src   = URL.createObjectURL(input.files[0]);
+    preview.style.display = 'block';
+    document.getElementById('upload-zone').querySelector('.upload-zone__icon').textContent = '✅';
+    document.getElementById('upload-zone').querySelector('.upload-zone__text').textContent = input.files[0].name;
+  }
+
+  async function createPost() {
+    if (!token) { showToast('Войдите', 'error'); return; }
+    const fileInput = document.getElementById('post-image');
+    const caption   = document.getElementById('post-caption').value.trim();
+    if (!fileInput.files[0]) { showToast('Выберите изображение', 'error'); return; }
+    const form = new FormData();
+    form.append('image', fileInput.files[0]);
+    if (caption) form.append('caption', caption);
+    try {
+      const res  = await fetch('/posts', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: form,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Публикация создана! 🎉', 'success');
+        fileInput.value = '';
+        document.getElementById('upload-preview').style.display = 'none';
+        document.getElementById('post-caption').value = '';
+        document.getElementById('upload-zone').querySelector('.upload-zone__icon').textContent = '📷';
+        document.getElementById('upload-zone').querySelector('.upload-zone__text').textContent = 'Нажмите или перетащите изображение';
+        page = 1; hasMore = true;
+        await loadPosts(true);
+      } else {
+        showToast((data.errors && data.errors.image) || 'Ошибка создания', 'error');
+      }
+    } catch (e) { showToast('Ошибка сети', 'error'); }
+  }
+
+  function renderSidebar() {
+    const sidebar = document.getElementById('feed-sidebar');
+    sidebar.innerHTML =
+      '<div class="sidebar-user">' +
+        (me.avatar
+          ? '<img class="sidebar-user__avatar" src="' + me.avatar + '" alt="' + escHtml(me.username) + '" />'
+          : '<div class="sidebar-user__avatar-placeholder">' + me.username[0].toUpperCase() + '</div>'
+        ) +
+        '<div>' +
+          '<div class="sidebar-user__name">' + escHtml(me.name || me.username) + '</div>' +
+          '<div class="sidebar-user__username">@' + escHtml(me.username) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sidebar-actions">' +
+        '<a href="/chat" class="btn btn-secondary" style="display:block;text-align:center">💬 Сообщения</a>' +
+        '<button class="btn btn-secondary" onclick="logout()">Выйти</button>' +
+      '</div>';
+  }
+
+  function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+
+<%- include('partials/footer') %>

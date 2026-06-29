@@ -3,6 +3,7 @@ import HttpErrors from 'http-errors';
 import Posts from '../models/Posts.js';
 import Users from '../models/Users.js';
 import Comments from '../models/Comments.js';
+import '../models/Likes.js';
 
 export default {
   async create(req, res, next) {
@@ -45,6 +46,7 @@ export default {
           },
           {
             model: Comments,
+            as: 'comments',
           },
           {
             model: Users,

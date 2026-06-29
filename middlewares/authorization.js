@@ -8,7 +8,7 @@ const { TOKEN_SECRET } = process.env;
 export default async (req, res, next) => {
   try {
     const token =
-      String(req.headers?.authorization).replace("Bearer").trim() || null;
+      String(req.headers?.authorization).replace("Bearer ", "").trim()
 
     if (!token) {
       next(new HttpErrors(401));

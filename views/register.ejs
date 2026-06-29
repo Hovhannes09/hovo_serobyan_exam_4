@@ -1,0 +1,105 @@
+<%- include('partials/header', { title: 'Регистрация — Instagram' }) %>
+
+<div class="auth-page">
+  <div class="auth-box">
+    <div class="auth-box__logo">Instagram</div>
+    <h2>Зарегистрируйтесь, чтобы видеть фото и видео ваших друзей</h2>
+
+    <div id="alert-container"></div>
+
+    <div class="form-group">
+      <input type="text" id="name" placeholder="Полное имя" autocomplete="name" />
+      <div class="field-error" id="name-error"></div>
+    </div>
+    <div class="form-group">
+      <input type="text" id="username" placeholder="Имя пользователя" autocomplete="username" />
+      <div class="field-error" id="username-error"></div>
+    </div>
+    <div class="form-group">
+      <input type="email" id="email" placeholder="Электронная почта" autocomplete="email" />
+      <div class="field-error" id="email-error"></div>
+    </div>
+    <div class="form-group">
+      <input type="password" id="password" placeholder="Пароль" autocomplete="new-password" />
+      <div class="field-error" id="password-error"></div>
+    </div>
+
+    <button class="btn btn-primary" id="reg-btn" onclick="doRegister()">Зарегистрироваться</button>
+
+    <div class="auth-switch">
+      Уже есть аккаунт? <a href="/login">Войти</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  if (localStorage.getItem('token')) {
+    window.location.href = '/';
+  }
+
+  async function doRegister() {
+    const name     = document.getElementById('name').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('reg-btn');
+    const alertBox = document.getElementById('alert-container');
+
+    // Clear errors
+    ['name','username','email','password'].forEach(f => {
+      document.getElementById(f + '-error').textContent = '';
+    });
+    alertBox.innerHTML = '';
+
+    if (!name || !username || !email || !password) {
+      alertBox.innerHTML = '<div class="alert alert-error">Заполните все поля</div>';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Регистрируем...';
+
+    try {
+      const res  = await fetch('/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, username, email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errors = data.errors || {};
+        Object.keys(errors).forEach(key => {
+          const el = document.getElementById(key + '-error');
+          if (el) el.textContent = errors[key];
+        });
+        if (!Object.keys(errors).length) {
+          alertBox.innerHTML = `<div class="alert alert-error">${data.message || 'Ошибка регистрации'}</div>`;
+        }
+        return;
+      }
+
+      alertBox.innerHTML = `
+        <div class="alert alert-success">
+          ✅ ${data.message || 'Регистрация успешна!'}<br>
+          Проверьте вашу почту для активации аккаунта.
+        </div>
+      `;
+      // Clear fields
+      ['name','username','email','password'].forEach(f => {
+        document.getElementById(f).value = '';
+      });
+    } catch (e) {
+      alertBox.innerHTML = '<div class="alert alert-error">Ошибка сети. Попробуйте снова.</div>';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Зарегистрироваться';
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doRegister();
+  });
+</script>
+
+<%- include('partials/footer') %>

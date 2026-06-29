@@ -1,0 +1,201 @@
+<%- include('partials/header', { title: 'Чат — Instagram' }) %>
+
+<div style="padding:0 20px;max-width:935px;margin:0 auto">
+  <div class="chat-layout">
+
+    <!-- Left: conversations list -->
+    <div class="chat-sidebar">
+      <div class="chat-sidebar__header">Сообщения</div>
+      <div class="chat-new-message">
+        <input type="number" id="new-chat-id" placeholder="ID пользователя" min="1" />
+        <button onclick="openChat()">Открыть</button>
+      </div>
+      <div class="chat-conversations" id="conversations-list">
+        <div style="padding:20px;color:var(--text-light);font-size:14px;text-align:center">
+          Введите ID пользователя чтобы начать чат
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: active chat -->
+    <div class="chat-main" id="chat-main">
+      <div class="chat-empty">
+        <div style="text-align:center">
+          <div style="font-size:48px;margin-bottom:12px">💬</div>
+          <div>Выберите чат или введите ID пользователя</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const token = localStorage.getItem('token');
+  const me    = JSON.parse(localStorage.getItem('user') || 'null');
+
+  if (!token || !me) {
+    showToast && showToast('Войдите для доступа к чату', 'error');
+    setTimeout(() => window.location.href = '/login', 1000);
+  }
+
+  let activeUserId = null;
+  let socket       = null;
+  const conversations = {}; // userId -> [{from, to, message, createdAt}]
+
+  /* ── Socket.io ── */
+  function connectSocket() {
+    socket = io({ auth: { token } });
+
+    socket.on('connect', () => console.log('Socket connected'));
+    socket.on('connect_error', e => console.error('Socket error:', e.message));
+
+    socket.on('new_message', (msg) => {
+      const otherId = String(msg.from === me.id ? msg.to : msg.from);
+      if (!conversations[otherId]) conversations[otherId] = [];
+      conversations[otherId].push(msg);
+      addConversationTab(otherId, msg.message);
+      if (String(activeUserId) === otherId) {
+        appendMessage(msg, msg.from == me.id);
+      } else {
+        showToast('Новое сообщение от #' + otherId);
+      }
+    });
+  }
+
+  if (token) connectSocket();
+
+  /* ── Open chat by user ID ── */
+  function openChat() {
+    const id = document.getElementById('new-chat-id').value.trim();
+    if (!id) return;
+    document.getElementById('new-chat-id').value = '';
+    loadChat(id);
+  }
+
+  document.getElementById('new-chat-id').addEventListener('keydown', e => {
+    if (e.key === 'Enter') openChat();
+  });
+
+  async function loadChat(userId) {
+    activeUserId = String(userId);
+
+    // Add to conversations list if not present
+    if (!conversations[activeUserId]) {
+      conversations[activeUserId] = [];
+    }
+
+    // Fetch history
+    try {
+      const res  = await fetch('/api/chat/messages/' + userId, {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const data = await res.json();
+      conversations[activeUserId] = (data.messages || []).reverse();
+    } catch (e) { console.error(e); }
+
+    addConversationTab(activeUserId, '');
+    renderChat(activeUserId);
+  }
+
+  function addConversationTab(userId, lastMsg) {
+    const list    = document.getElementById('conversations-list');
+    const existId = 'conv-tab-' + userId;
+
+    if (!document.getElementById(existId)) {
+      const div = document.createElement('div');
+      div.className   = 'chat-conversation-item';
+      div.id          = existId;
+      div.onclick     = () => { activeUserId = userId; renderChat(userId); };
+      div.innerHTML   =
+        '<div class="chat-conversation-item__avatar">' + userId[0] + '</div>' +
+        '<div class="chat-conversation-item__info">' +
+          '<div class="chat-conversation-item__name">Пользователь #' + escHtml(String(userId)) + '</div>' +
+          '<div class="chat-conversation-item__preview" id="conv-preview-' + userId + '">' + escHtml(lastMsg) + '</div>' +
+        '</div>';
+      list.appendChild(div);
+    } else if (lastMsg) {
+      const preview = document.getElementById('conv-preview-' + userId);
+      if (preview) preview.textContent = lastMsg;
+    }
+
+    // Mark active
+    document.querySelectorAll('.chat-conversation-item').forEach(el => el.classList.remove('active'));
+    const tab = document.getElementById(existId);
+    if (tab) tab.classList.add('active');
+  }
+
+  function renderChat(userId) {
+    const msgs  = conversations[userId] || [];
+    const main  = document.getElementById('chat-main');
+
+    main.innerHTML =
+      '<div class="chat-main__header">Чат с пользователем #' + escHtml(String(userId)) + '</div>' +
+      '<div class="chat-messages" id="messages-box">' +
+        msgs.map(m => renderMessage(m)).join('') +
+      '</div>' +
+      '<div class="chat-input-area">' +
+        '<input type="text" id="msg-input" placeholder="Написать сообщение..." onkeydown="if(event.key===\'Enter\') sendMsg()" />' +
+        '<button onclick="sendMsg()">➤</button>' +
+      '</div>';
+
+    scrollToBottom();
+    document.getElementById('msg-input').focus();
+
+    // Mark active tab
+    document.querySelectorAll('.chat-conversation-item').forEach(el => el.classList.remove('active'));
+    const tab = document.getElementById('conv-tab-' + userId);
+    if (tab) tab.classList.add('active');
+  }
+
+  function renderMessage(msg) {
+    const isSent = msg.from == me.id;
+    const time   = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+    return '<div class="chat-message ' + (isSent ? 'sent' : 'received') + '" title="' + time + '">' + escHtml(msg.message) + '</div>';
+  }
+
+  function appendMessage(msg, isSent) {
+    const box = document.getElementById('messages-box');
+    if (!box) return;
+    const time = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+    box.insertAdjacentHTML('beforeend',
+      '<div class="chat-message ' + (isSent ? 'sent' : 'received') + '" title="' + time + '">' + escHtml(msg.message) + '</div>');
+    scrollToBottom();
+  }
+
+  async function sendMsg() {
+    if (!activeUserId) return;
+    const input   = document.getElementById('msg-input');
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = '';
+
+    try {
+      const res  = await fetch('/api/chat/send/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ to: Number(activeUserId), message }),
+      });
+
+      if (res.ok) {
+        const msg = { from: me.id, to: Number(activeUserId), message, createdAt: new Date().toISOString() };
+        if (!conversations[activeUserId]) conversations[activeUserId] = [];
+        conversations[activeUserId].push(msg);
+        appendMessage(msg, true);
+        const preview = document.getElementById('conv-preview-' + activeUserId);
+        if (preview) preview.textContent = message;
+      }
+    } catch (e) { showToast('Ошибка отправки', 'error'); }
+  }
+
+  function scrollToBottom() {
+    const box = document.getElementById('messages-box');
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+
+<%- include('partials/footer') %>
