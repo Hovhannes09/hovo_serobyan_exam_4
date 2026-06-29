@@ -1,17 +1,21 @@
 import { Router } from 'express';
-import { validate } from 'uuid'
+import validation from '../middlewares/validation.js';
+import authorization from '../middlewares/authorization.js';
+
+import controller from '../controllers/chat.js';
 
 const router = Router();
 
 router.post(
-	'/send/message',
-	validate(schema.message),
-	sendMessage,
+  '/send/message',
+  authorization,
+  controller.sendMessage,
 );
 
-router.post(
-	'messages/:formId',
-	getMessages,
+router.get(
+  '/messages/:fromId',
+  authorization,
+  controller.getMessages,
 );
 
 export default router;

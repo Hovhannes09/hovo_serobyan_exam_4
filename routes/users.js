@@ -1,9 +1,11 @@
-import { Router } from "express";
-import upload from "../middlewares/upload.js";
+import { Router } from "express"
+import upload from "../middlewares/upload.js"
 
-import validation from "../middlewares/validation.js";
-import schema from "../middlewares/schemas/users.schema.js";
-import authorization from "../middlewares/authorization.js";
+import controller from '../controllers/users.js'
+
+import authorization from "../middlewares/authorization.js"
+import schema from "../middlewares/schemas/users.schema.js"
+import validation from "../middlewares/validation.js"
 
 const router = Router();
 

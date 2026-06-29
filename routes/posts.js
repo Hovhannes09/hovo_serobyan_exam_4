@@ -1,32 +1,34 @@
 import { Router } from 'express';
+import authorization from '../middlewares/authorization.js';
+import upload from '../middlewares/upload.js';
+import validation from '../middlewares/validation.js';
+import schemas from '../middlewares/schemas/posts.schema.js';
+
+import controller from '../controllers/posts.js'
 
 const router = Router();
 
-router.get('/', (req, res) => {
-	res.json({
-		message: 'Welcome to the Post'
-	});
-});
+router.get('/', controller.feed);
 
 router.post(
-  '/', 
-  authorization,                
-  upload.single('image'),       
-  validate(schemas.create),      
-  createPost                    
+  '/',
+  authorization,
+  upload.single('image'),
+  validation(schemas.create),
+  controller.create
 );
 
 router.post(
   '/:id/like',
   authorization,
-  likePost,
+  controller.like
 );
 
 router.post(
   '/:id/comment',
   authorization,
-  validate(schema.comment),
-  commentPost,
+  validation(schemas.comment),
+  controller.comment
 );
 
 export default router;

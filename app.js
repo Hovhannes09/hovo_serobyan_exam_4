@@ -3,9 +3,12 @@ import path from "path";
 import morgan from "morgan";
 import express from "express";
 import { createServer } from "http";
+import { fileURLToPath } from 'url'
+import Socket from './services/Socket.js'
 
 import "./migrate.js";
 
+import routes from './routes/index.js'
 import errorHandler from "./middlewares/errorHanlder.js";
 
 const app = express();

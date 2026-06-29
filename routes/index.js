@@ -1,7 +1,7 @@
 import express from 'express';
-import usersRouter from './routes/users.js';
-import postsRouter from './routes/posts.js';
-import chatRouter from './routes/chat.js';
+import usersRouter from './users.js';
+import postsRouter from './posts.js';
+import chatRouter from './chat.js';
 
 const app = express();
 
