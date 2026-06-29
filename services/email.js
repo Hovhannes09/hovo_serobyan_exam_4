@@ -21,7 +21,7 @@ export default async function ({
 }) {
   try {
     const filePath = path.resolve("views/email", template + ".ejs");
-    const html = await ejs.renderFile(filePath, { data });
+    const html = await ejs.renderFile(filePath, data);
 
     const payload = {
       from: '"Mini Blog" <team@example.com>',

@@ -55,7 +55,7 @@ export default {
 
 	  async register(req, res, next) {
     try {
-      const { name, email, password, age } = req.body;
+      const { username, name, email, password } = req.body;
 
       if (await Users.findOne({ where: { email } })) {
         throw new HttpErrors(422, {
@@ -68,10 +68,10 @@ export default {
       const activationToken = uuidv4();
 
       const user = await Users.create({
+        username,
         name,
         email,
         password: Users.hashPassword(password),
-        age,
         activationToken,
       });
 
@@ -82,12 +82,6 @@ export default {
         data: {
           link: `${BACKEND_HOST}/users/activate/${activationToken}`,
         },
-        attachments: [
-          {
-            filename: "kuku.png",
-            href: `${BACKEND_HOST}/media/4.png`,
-          },
-        ]
       })
 
       delete user.password;
