@@ -1,9 +1,9 @@
-import HttpErrors from 'http-errors';
+import HttpErrors from 'http-errors'
 
-import Posts from '../models/Posts.js';
-import Users from '../models/Users.js';
-import Comments from '../models/Comments.js';
-import '../models/Likes.js';
+import Posts from '../models/Posts.js'
+import Users from '../models/Users.js'
+import Comments from '../models/Comments.js'
+import '../models/Likes.js'
 
 export default {
   async create(req, res, next) {
@@ -13,26 +13,26 @@ export default {
           errors: {
             image: 'Image is required',
           },
-        });
+        })
       }
 
       const post = await Posts.create({
-        image: `/media/${req.file.filename}`,
+        image: req.file.path,
         caption: req.body.caption,
         userId: req.userId,
-      });
+      })
 
-      res.json(post);
+      res.json(post)
     } catch (e) {
-      next(e);
+      next(e)
     }
   },
 
   async feed(req, res, next) {
     try {
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 10;
-      const offset = (page - 1) * limit;
+      const page = Number(req.query.page) || 1
+      const limit = Number(req.query.limit) || 10
+      const offset = (page - 1) * limit
 
       const posts = await Posts.findAll({
         limit,
@@ -57,20 +57,20 @@ export default {
             },
           },
         ],
-      });
+      })
 
       const result = posts.map((post) => {
-        const json = post.toJSON();
+        const json = post.toJSON()
 
-        json.likesCount = json.likedBy.length;
-        delete json.likedBy;
+        json.likesCount = json.likedBy.length
+        delete json.likedBy
 
-        return json;
-      });
+        return json
+      })
 
-      res.json(result);
+      res.json(result)
     } catch (e) {
-      next(e);
+      next(e)
     }
   },
 
@@ -84,24 +84,24 @@ export default {
             attributes: ['id'],
           },
         ],
-      });
+      })
 
       if (!post) {
         throw new HttpErrors(404, {
           errors: {
             post: 'Post not found',
           },
-        });
+        })
       }
 
       const alreadyLiked = post.likedBy.some(
         (user) => user.id === req.userId
-      );
+      )
 
       if (alreadyLiked) {
-        await post.removeLikedBy(req.userId);
+        await post.removeLikedBy(req.userId)
       } else {
-        await post.addLikedBy(req.userId);
+        await post.addLikedBy(req.userId)
       }
 
       const updatedPost = await Posts.findByPk(req.params.id, {
@@ -112,47 +112,47 @@ export default {
             attributes: ['id'],
           },
         ],
-      });
+      })
 
       res.json({
         likesCount: updatedPost.likedBy.length,
-      });
+      })
     } catch (e) {
-      next(e);
+      next(e)
     }
   },
 
   async comment(req, res, next) {
     try {
-      const { text } = req.body;
+      const { text } = req.body
 
       if (!text || !text.trim()) {
         throw new HttpErrors(422, {
           errors: {
             text: 'Text is required',
           },
-        });
+        })
       }
 
-      const post = await Posts.findByPk(req.params.id);
+      const post = await Posts.findByPk(req.params.id)
 
       if (!post) {
         throw new HttpErrors(404, {
           errors: {
             post: 'Post not found',
           },
-        });
+        })
       }
 
       const comment = await Comments.create({
         text,
         userId: req.userId,
         postId: req.params.id,
-      });
+      })
 
-      res.json(comment);
+      res.json(comment)
     } catch (e) {
-      next(e);
+      next(e)
     }
   },
-};
+}

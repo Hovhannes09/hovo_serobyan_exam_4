@@ -1,13 +1,18 @@
-import mime from "mime";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 import multer from "multer";
-import { v7 as UUIDV7 } from "uuid";
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "./public/media/");
-  },
-  filename: function (req, file, cb) {
-    cb(null, UUIDV7() + "." + mime.getExtension(file.mimetype));
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "instagram-clone",
+    allowed_formats: ["jpg", "jpeg", "png", "webp", "gif"],
   },
 });
 
